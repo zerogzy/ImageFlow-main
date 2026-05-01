@@ -1,0 +1,86 @@
+version: '3.8'
+
+services:
+  backend:
+    image: soyorins/imageflow-backend:latest
+    container_name: imageflow-backend
+    ports:
+      - "8686:8686"
+    volumes:
+      - ./static/images:/app/static/images
+      - ./config:/app/config
+      - .env:/app/.env
+    environment:
+      - API_KEY=${API_KEY:-default_api_key}
+      - STORAGE_TYPE=${STORAGE_TYPE:-local}
+      - LOCAL_STORAGE_PATH=/app/static/images
+      - S3_ENDPOINT=${S3_ENDPOINT:-}
+      - S3_REGION=${S3_REGION:-}
+      - S3_ACCESS_KEY=${S3_ACCESS_KEY:-}
+      - S3_SECRET_KEY=${S3_SECRET_KEY:-}
+      - S3_BUCKET=${S3_BUCKET:-}
+      - CUSTOM_DOMAIN=${CUSTOM_DOMAIN:-}
+      - MAX_UPLOAD_COUNT=${MAX_UPLOAD_COUNT:-20}
+      - IMAGE_QUALITY=${IMAGE_QUALITY:-80}
+      - WORKER_THREADS=${WORKER_THREADS:-4}
+      - SPEED=${SPEED:-5}
+      - METADATA_STORE_TYPE=${METADATA_STORE_TYPE:-redis}
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - REDIS_DB=${REDIS_DB:-0}
+      - REDIS_TLS_ENABLED=${REDIS_TLS_ENABLED:-false}
+      - DEBUG_MODE=${DEBUG_MODE:-false} 
+    restart: unless-stopped
+    depends_on:
+      - redis
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:8686/api/random || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - imageflow-network
+  frontend:
+    image: soyorins/imageflow-frontend:latest
+    container_name: imageflow-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - BACKEND_URL=http://backend:8686
+      - NEXT_PUBLIC_REMOTE_PATTERNS=${NEXT_PUBLIC_REMOTE_PATTERNS}
+    healthcheck:
+      test: [ "CMD", "wget", "-q", "--spider", "http://localhost:3000/", "||", "exit", "1" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - imageflow-network
+
+  redis:
+    image: redis:alpine
+    container_name: imageflow-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - imageflow-network
+
+networks:
+  imageflow-network:
+    driver: bridge
+
+volumes:
+  redis_data:

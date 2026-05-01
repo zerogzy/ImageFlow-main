@@ -1,0 +1,36 @@
+# Build outputs
+.next/
+out/
+imageflow
+ImageFlow.exe
+*.log
+
+# Dependencies
+node_modules/
+vendor/
+
+# Environment files
+.env*
+!.env.example
+
+# IDE / Editor
+.idea/
+.vscode/
+.cursor/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Runtime data
+logs/
+temp/
+tmp/
+
+# Generated images
+static/images/**/*
+!static/images/**/
+!static/images/**/.gitkeep
+
+# Coverage
+coverage.txt
