@@ -8,6 +8,7 @@ import ApiKeyModal from "../components/ApiKeyModal";
 import UploadSection from "../components/UploadSection";
 import Header from "../components/Header";
 import ToastContainer, { showToast } from "../components/ToastContainer";
+import { UploadIcon, ImageIcon } from "../components/ui/icons";
 
 interface ConfigSettings {
   maxUploadCount: number;
@@ -152,15 +153,23 @@ export default function UploadPage() {
         title="图片上传"
         isKeyVerified={isKeyVerified}
       />
-      <div className="max-w-7xl mx-auto px-6 pt-24 pb-12">
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 pt-24 pb-12">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
           <div className="text-center mb-10">
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">图片上传</h1>
-            <p className="text-gray-500 dark:text-gray-400">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.5, delay: 0.1 }}
+              className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/25 mb-3"
+            >
+              <UploadIcon className="h-7 w-7 text-white" />
+            </motion.div>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-1.5">图片上传</h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
               拖拽图片到下方区域或点击选择，支持批量上传
             </p>
           </div>
@@ -181,15 +190,22 @@ export default function UploadPage() {
               isKeyVerified={isKeyVerified}
             />
           ) : (
-            <div className="text-center py-20">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="text-center py-16"
+            >
+              <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gray-100 dark:bg-gray-800 mb-4">
+                <ImageIcon className="h-10 w-10 text-gray-400 dark:text-gray-500" />
+              </div>
               <p className="text-gray-500 dark:text-gray-400 mb-4">请先验证管理员密钥以访问上传功能</p>
               <button
                 onClick={() => setShowKeyModal(true)}
-                className="px-6 py-3 bg-indigo-500 text-white rounded-xl hover:bg-indigo-600 transition-colors"
+                className="px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl hover:from-indigo-600 hover:to-purple-700 shadow-lg shadow-indigo-500/25 transition-all duration-300"
               >
                 输入密钥
               </button>
-            </div>
+            </motion.div>
           )}
         </motion.div>
       </div>

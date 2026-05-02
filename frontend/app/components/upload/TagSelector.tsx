@@ -13,39 +13,32 @@ interface TagSelectorProps {
 export default function TagSelector({ selectedTags, availableTags, onTagsChange, onNewTagCreated }: TagSelectorProps) {
   const [inputTag, setInputTag] = useState('')
 
-  // 处理标签选择变更
   const handleTagChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const tag = e.target.value
     if (tag && !selectedTags.includes(tag)) {
       onTagsChange([...selectedTags, tag])
     }
-    // 重置选择框
     e.target.value = ''
   }
 
-  // 处理标签移除
   const handleRemoveTag = (tag: string) => {
     onTagsChange(selectedTags.filter(t => t !== tag))
   }
 
-  // 处理自定义标签输入
   const handleTagInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInputTag(e.target.value)
   }
 
-  // 添加自定义标签
   const handleAddTag = () => {
     if (inputTag.trim() && !selectedTags.includes(inputTag.trim())) {
       onTagsChange([...selectedTags, inputTag.trim()])
       setInputTag('')
-      // 通知父组件有新标签被创建
       if (onNewTagCreated) {
         onNewTagCreated()
       }
     }
   }
 
-  // 处理回车键添加标签
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault()
@@ -54,40 +47,42 @@ export default function TagSelector({ selectedTags, availableTags, onTagsChange,
   }
 
   return (
-    <div className="mb-6">
-      <div className="flex items-center space-x-4 mb-2">
-        <div className="flex items-center">
-          <TagIcon className="h-5 w-5 mr-2 text-indigo-500" />
-          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">标签：</span>
+    <div>
+      <div className="flex items-center gap-3 mb-3">
+        <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 flex-shrink-0">
+          <TagIcon className="h-4 w-4" />
+          <span className="font-medium">标签</span>
         </div>
 
-        <div className="flex-1 flex space-x-2">
-          <select
-            onChange={handleTagChange}
-            value=""
-            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-600 text-sm shadow-sm"
-          >
-            <option value="">选择标签...</option>
-            {availableTags
-              .filter(tag => !selectedTags.includes(tag))
-              .map(tag => (
-                <option key={tag} value={tag}>{tag}</option>
-              ))}
-          </select>
+        <div className="flex-1 flex items-center gap-2">
+          {availableTags.length > 0 && (
+            <select
+              onChange={handleTagChange}
+              value=""
+              className="px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 text-sm"
+            >
+              <option value="">选择标签...</option>
+              {availableTags
+                .filter(tag => !selectedTags.includes(tag))
+                .map(tag => (
+                  <option key={tag} value={tag}>{tag}</option>
+                ))}
+            </select>
+          )}
 
-          <div className="flex">
+          <div className="flex flex-1">
             <input
               type="text"
               value={inputTag}
               onChange={handleTagInput}
               onKeyDown={handleKeyDown}
               placeholder="自定义标签"
-              className="px-3 py-2 rounded-l-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-600 text-sm shadow-sm"
+              className="flex-1 px-3 py-2 rounded-l-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 text-sm"
             />
             <button
               type="button"
               onClick={handleAddTag}
-              className="px-3 py-2 rounded-r-lg bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white font-medium transition-colors duration-200 text-sm flex items-center"
+              className="px-3 py-2 rounded-r-xl bg-indigo-500 hover:bg-indigo-600 text-white transition-colors duration-200 text-sm flex items-center"
             >
               <PlusIcon className="h-4 w-4" />
             </button>
@@ -96,21 +91,21 @@ export default function TagSelector({ selectedTags, availableTags, onTagsChange,
       </div>
 
       {selectedTags.length > 0 && (
-        <div className="flex flex-wrap gap-2 mt-2">
+        <div className="flex flex-wrap gap-1.5 ml-[4.5rem]">
           {selectedTags.map(tag => (
-            <div
+            <span
               key={tag}
-              className="bg-gradient-to-r from-indigo-500 to-purple-500 text-white px-3 py-1 rounded-full text-sm font-medium flex items-center shadow-sm"
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 text-xs font-medium"
             >
-              <span>{tag}</span>
+              {tag}
               <button
                 type="button"
                 onClick={() => handleRemoveTag(tag)}
-                className="ml-1.5 rounded-full p-0.5 hover:bg-white/20 transition-colors"
+                className="hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors"
               >
-                <Cross1Icon className="h-3.5 w-3.5" />
+                <Cross1Icon className="h-3 w-3" />
               </button>
-            </div>
+            </span>
           ))}
         </div>
       )}

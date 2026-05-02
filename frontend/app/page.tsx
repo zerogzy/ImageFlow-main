@@ -1,17 +1,26 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
+import Masonry from "react-masonry-css";
 import Header from "./components/Header";
 import ImageCard from "./components/ImageCard";
 import ImageModal from "./components/ImageModal";
-import ImageFilters from "./components/ImageFilters";
 import ToastContainer, { showToast } from "./components/ToastContainer";
 import ApiKeyModal from "./components/ApiKeyModal";
 import { ImageFile, ImageListResponse } from "./types";
 import { api } from "./utils/request";
 import { getApiKey, setApiKey, validateApiKey, removeApiKey } from "./utils/auth";
-import { UploadIcon, PlusIcon, ImageIcon } from "./components/ui/icons";
+import {
+  UploadIcon,
+  PlusIcon,
+  ImageIcon,
+  ChevronDownIcon,
+  TagIcon,
+  Cross1Icon,
+  CheckIcon,
+  MixerHorizontalIcon,
+} from "./components/ui/icons";
 
 export default function Home() {
   const [images, setImages] = useState<ImageFile[]>([]);
@@ -25,6 +34,11 @@ export default function Home() {
   const [adminKey, setAdminKey] = useState<string | null>(null);
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [pendingAdminAction, setPendingAdminAction] = useState<(() => void) | null>(null);
+  const [availableTags, setAvailableTags] = useState<string[]>([]);
+  const [tagSearchQuery, setTagSearchQuery] = useState("");
+  const [activeDropdown, setActiveDropdown] = useState<"format" | "orientation" | "tag" | null>(null);
+  const [editingTagImage, setEditingTagImage] = useState<ImageFile | null>(null);
+  const [tagEditValue, setTagEditValue] = useState("");
 
   useEffect(() => {
     const savedKey = getApiKey();
@@ -32,6 +46,7 @@ export default function Home() {
       validateApiKey(savedKey).then((valid) => {
         if (valid) {
           setAdminKey(savedKey);
+          fetchTags();
         } else {
           removeApiKey();
         }
@@ -42,6 +57,15 @@ export default function Home() {
   useEffect(() => {
     fetchImages();
   }, [filterFormat, filterOrientation, filterTag, page]);
+
+  const fetchTags = async () => {
+    try {
+      const response = await api.get<{ tags: string[] }>("/api/tags");
+      if (response.tags) {
+        setAvailableTags(response.tags);
+      }
+    } catch {}
+  };
 
   const fetchImages = async () => {
     setLoading(true);
@@ -79,6 +103,7 @@ export default function Home() {
         setAdminKey(key);
         setShowAdminModal(false);
         showToast("管理员验证成功", "success");
+        fetchTags();
         if (pendingAdminAction) {
           pendingAdminAction();
           setPendingAdminAction(null);
@@ -148,7 +173,7 @@ export default function Home() {
     } catch (error: any) {
       showToast(`修改标签失败：${error.message || "未知错误"}`, "error");
     }
-  }, [adminKey]);
+  }, []);
 
   const handleFilterChange = useCallback((format: string, orientation: string, tag: string) => {
     setFilterFormat(format || "webp");
@@ -156,6 +181,50 @@ export default function Home() {
     setFilterTag(tag || "");
     setPage(1);
   }, []);
+
+  const openTagEditor = (image: ImageFile) => {
+    setEditingTagImage(image);
+    setTagEditValue((image.tags || []).join(", "));
+  };
+
+  const saveTagEdit = () => {
+    if (editingTagImage) {
+      handleUpdateTags(editingTagImage.id, tagEditValue);
+      setEditingTagImage(null);
+      setTagEditValue("");
+    }
+  };
+
+  const filteredTags = tagSearchQuery.trim() === ""
+    ? availableTags
+    : availableTags.filter((t) => t.toLowerCase().includes(tagSearchQuery.toLowerCase()));
+
+  const formatOptions = [
+    { value: "webp", label: "图片" },
+    { value: "gif", label: "GIF" },
+  ];
+
+  const orientationOptions = [
+    { value: "all", label: "全部方向" },
+    { value: "landscape", label: "横向" },
+    { value: "portrait", label: "纵向" },
+  ];
+
+  const masonryBreakpoints = {
+    default: 4,
+    1280: 4,
+    1024: 3,
+    768: 2,
+    640: 1,
+  };
+
+  useEffect(() => {
+    const handleClickOutside = () => setActiveDropdown(null);
+    if (activeDropdown) {
+      document.addEventListener("click", handleClickOutside);
+      return () => document.removeEventListener("click", handleClickOutside);
+    }
+  }, [activeDropdown]);
 
   return (
     <>
@@ -169,17 +238,16 @@ export default function Home() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          {/* 页面标题区域 */}
-          <div className="text-center mb-12">
+          <div className="text-center mb-10">
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.5, delay: 0.1 }}
-              className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/25 mb-4"
+              className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/25 mb-3"
             >
-              <ImageIcon className="h-8 w-8 text-white" />
+              <ImageIcon className="h-7 w-7 text-white" />
             </motion.div>
-            <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-white mb-2">
+            <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-white mb-1.5">
               图片广场
             </h1>
             <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -187,9 +255,175 @@ export default function Home() {
             </p>
           </div>
 
-          {/* 操作栏 */}
-          <div className="flex items-center justify-between mb-8">
-            <ImageFilters onFilterChange={handleFilterChange} enabled={!!adminKey} />
+          <div className="flex flex-wrap items-center gap-3 mb-8">
+            <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+              <MixerHorizontalIcon className="h-4 w-4" />
+              <span>筛选</span>
+            </div>
+
+            <div className="relative" onClick={(e) => e.stopPropagation()}>
+              <button
+                onClick={() => setActiveDropdown(activeDropdown === "format" ? null : "format")}
+                className="flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-indigo-300 dark:hover:border-indigo-600 transition-colors shadow-sm"
+              >
+                <span>{formatOptions.find((o) => o.value === filterFormat)?.label}</span>
+                <ChevronDownIcon className={`h-3.5 w-3.5 transition-transform ${activeDropdown === "format" ? "rotate-180" : ""}`} />
+              </button>
+              <AnimatePresence>
+                {activeDropdown === "format" && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute top-full left-0 mt-1.5 w-32 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden"
+                  >
+                    {formatOptions.map((opt) => (
+                      <button
+                        key={opt.value}
+                        onClick={() => {
+                          handleFilterChange(opt.value, filterOrientation, filterTag);
+                          setActiveDropdown(null);
+                        }}
+                        className={`w-full px-3.5 py-2.5 text-sm text-left transition-colors ${
+                          filterFormat === opt.value
+                            ? "bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-medium"
+                            : "text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            <div className="relative" onClick={(e) => e.stopPropagation()}>
+              <button
+                onClick={() => setActiveDropdown(activeDropdown === "orientation" ? null : "orientation")}
+                className="flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-indigo-300 dark:hover:border-indigo-600 transition-colors shadow-sm"
+              >
+                <span>{orientationOptions.find((o) => o.value === filterOrientation)?.label}</span>
+                <ChevronDownIcon className={`h-3.5 w-3.5 transition-transform ${activeDropdown === "orientation" ? "rotate-180" : ""}`} />
+              </button>
+              <AnimatePresence>
+                {activeDropdown === "orientation" && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute top-full left-0 mt-1.5 w-36 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden"
+                  >
+                    {orientationOptions.map((opt) => (
+                      <button
+                        key={opt.value}
+                        onClick={() => {
+                          handleFilterChange(filterFormat, opt.value, filterTag);
+                          setActiveDropdown(null);
+                        }}
+                        className={`w-full px-3.5 py-2.5 text-sm text-left transition-colors ${
+                          filterOrientation === opt.value
+                            ? "bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-medium"
+                            : "text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {adminKey && availableTags.length > 0 && (
+              <div className="relative" onClick={(e) => e.stopPropagation()}>
+                <button
+                  onClick={() => setActiveDropdown(activeDropdown === "tag" ? null : "tag")}
+                  className="flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-indigo-300 dark:hover:border-indigo-600 transition-colors shadow-sm"
+                >
+                  <TagIcon className="h-3.5 w-3.5" />
+                  <span>{filterTag || "标签"}</span>
+                  <ChevronDownIcon className={`h-3.5 w-3.5 transition-transform ${activeDropdown === "tag" ? "rotate-180" : ""}`} />
+                </button>
+                <AnimatePresence>
+                  {activeDropdown === "tag" && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -4 }}
+                      transition={{ duration: 0.15 }}
+                      className="absolute top-full left-0 mt-1.5 w-48 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden"
+                    >
+                      <div className="p-2 border-b border-gray-100 dark:border-gray-700">
+                        <input
+                          type="text"
+                          value={tagSearchQuery}
+                          onChange={(e) => setTagSearchQuery(e.target.value)}
+                          placeholder="搜索标签..."
+                          className="w-full px-2.5 py-1.5 text-sm rounded-lg bg-gray-50 dark:bg-gray-700/50 border-0 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-gray-800 dark:text-gray-200 placeholder-gray-400"
+                        />
+                      </div>
+                      <div className="max-h-48 overflow-y-auto">
+                        <button
+                          onClick={() => {
+                            handleFilterChange(filterFormat, filterOrientation, "");
+                            setActiveDropdown(null);
+                            setTagSearchQuery("");
+                          }}
+                          className={`w-full px-3.5 py-2 text-sm text-left transition-colors ${
+                            filterTag === ""
+                              ? "bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-medium"
+                              : "text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                          }`}
+                        >
+                          全部标签
+                        </button>
+                        {filteredTags.map((tag) => (
+                          <button
+                            key={tag}
+                            onClick={() => {
+                              handleFilterChange(filterFormat, filterOrientation, tag);
+                              setActiveDropdown(null);
+                              setTagSearchQuery("");
+                            }}
+                            className={`w-full px-3.5 py-2 text-sm text-left transition-colors ${
+                              filterTag === tag
+                                ? "bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-medium"
+                                : "text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                            }`}
+                          >
+                            {tag}
+                          </button>
+                        ))}
+                        {filteredTags.length === 0 && (
+                          <div className="px-3.5 py-3 text-sm text-gray-400 text-center">无匹配标签</div>
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
+
+            {filterTag && (
+              <motion.span
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300"
+              >
+                {filterTag}
+                <button
+                  onClick={() => handleFilterChange(filterFormat, filterOrientation, "")}
+                  className="hover:text-indigo-900 dark:hover:text-indigo-100"
+                >
+                  <Cross1Icon className="h-3 w-3" />
+                </button>
+              </motion.span>
+            )}
+
+            <div className="flex-1" />
 
             <motion.a
               href="/upload"
@@ -202,7 +436,6 @@ export default function Home() {
             </motion.a>
           </div>
 
-          {/* 加载状态 - 骨架屏 */}
           {loading && images.length === 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
               {Array.from({ length: 8 }).map((_, i) => (
@@ -223,7 +456,6 @@ export default function Home() {
             </div>
           )}
 
-          {/* 空状态 */}
           {!loading && images.length === 0 && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -247,75 +479,115 @@ export default function Home() {
             </motion.div>
           )}
 
-          {/* 图片网格 */}
           {images.length > 0 && (
             <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-                {images.map((image, index) => (
-                  <motion.div
-                    key={image.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.4, delay: index * 0.05 }}
-                    className="relative group"
-                  >
-                    <ImageCard
-                      image={image}
-                      onClick={() => handleCardClick(image)}
-                      onDelete={handleCardDelete}
-                    />
-                    {adminKey && (
-                      <motion.div
-                        initial={{ opacity: 0, scale: 0.8 }}
-                        whileHover={{ scale: 1.1 }}
-                        className="absolute top-3 left-3 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-                      >
-                        <button
+              {filterOrientation === "all" ? (
+                <Masonry
+                  breakpointCols={masonryBreakpoints}
+                  className="my-masonry-grid"
+                  columnClassName="my-masonry-grid_column"
+                >
+                  {images.map((image, index) => (
+                    <motion.div
+                      key={image.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.4, delay: index * 0.05 }}
+                      className="relative group mb-4"
+                    >
+                      <ImageCard
+                        image={image}
+                        onClick={() => handleCardClick(image)}
+                        onDelete={handleCardDelete}
+                      />
+                      {adminKey && (
+                        <motion.button
+                          initial={{ opacity: 0, scale: 0.8 }}
+                          whileHover={{ scale: 1.1 }}
                           onClick={(e) => {
                             e.stopPropagation();
-                            const newTags = prompt(
-                              "修改标签（逗号分隔）：",
-                              (image.tags || []).join(",")
-                            );
-                            if (newTags !== null) {
-                              handleUpdateTags(image.id, newTags);
-                            }
+                            openTagEditor(image);
                           }}
-                          className="p-2 bg-amber-500 text-white rounded-xl hover:bg-amber-600 transition-colors shadow-lg shadow-amber-500/30"
+                          className="absolute top-3 left-3 z-10 p-2 bg-amber-500 text-white rounded-xl hover:bg-amber-600 transition-colors shadow-lg shadow-amber-500/30 opacity-0 group-hover:opacity-100"
                           title="修改标签"
                         >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M17.707 9.293a1 1 0 010 1.414l-7 7a1 1 0 01-1.414 0l-7-7A.997.997 0 012 10V5a3 3 0 013-3h5c.256 0 .512.098.707.293l7 7zM5 6a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
-                          </svg>
-                        </button>
-                      </motion.div>
-                    )}
-                  </motion.div>
-                ))}
-              </div>
+                          <TagIcon className="h-3.5 w-3.5" />
+                        </motion.button>
+                      )}
+                    </motion.div>
+                  ))}
+                </Masonry>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+                  {images.map((image, index) => (
+                    <motion.div
+                      key={image.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.4, delay: index * 0.05 }}
+                      className="relative group"
+                    >
+                      <ImageCard
+                        image={image}
+                        onClick={() => handleCardClick(image)}
+                        onDelete={handleCardDelete}
+                      />
+                      {adminKey && (
+                        <motion.button
+                          initial={{ opacity: 0, scale: 0.8 }}
+                          whileHover={{ scale: 1.1 }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openTagEditor(image);
+                          }}
+                          className="absolute top-3 left-3 z-10 p-2 bg-amber-500 text-white rounded-xl hover:bg-amber-600 transition-colors shadow-lg shadow-amber-500/30 opacity-0 group-hover:opacity-100"
+                          title="修改标签"
+                        >
+                          <TagIcon className="h-3.5 w-3.5" />
+                        </motion.button>
+                      )}
+                    </motion.div>
+                  ))}
+                </div>
+              )}
 
-              {/* 分页 */}
               {totalPages > 1 && (
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ delay: 0.3 }}
-                  className="flex justify-center items-center gap-4 mt-12"
+                  className="flex justify-center items-center gap-2 mt-10"
                 >
                   <button
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
                     disabled={page <= 1}
-                    className="px-5 py-2.5 text-sm font-medium rounded-xl border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200"
+                    className="px-4 py-2 text-sm font-medium rounded-xl border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200"
                   >
                     上一页
                   </button>
-                  <span className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 rounded-xl">
-                    {page} / {totalPages}
-                  </span>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1)
+                    .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+                    .map((p, i, arr) => (
+                      <span key={p} className="flex items-center">
+                        {i > 0 && arr[i - 1] !== p - 1 && (
+                          <span className="px-1 text-gray-400">...</span>
+                        )}
+                        <button
+                          onClick={() => setPage(p)}
+                          className={`w-9 h-9 text-sm font-medium rounded-xl transition-all duration-200 ${
+                            page === p
+                              ? "bg-indigo-500 text-white shadow-md shadow-indigo-500/25"
+                              : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
+                          }`}
+                        >
+                          {p}
+                        </button>
+                      </span>
+                    ))}
                   <button
                     onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                     disabled={page >= totalPages}
-                    className="px-5 py-2.5 text-sm font-medium rounded-xl border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200"
+                    className="px-4 py-2 text-sm font-medium rounded-xl border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200"
                   >
                     下一页
                   </button>
@@ -341,6 +613,85 @@ export default function Home() {
         }}
         onSuccess={handleAdminAuth}
       />
+
+      <AnimatePresence>
+        {editingTagImage && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+            onClick={() => setEditingTagImage(null)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 p-6 w-full max-w-md mx-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">修改标签</h3>
+                <button
+                  onClick={() => setEditingTagImage(null)}
+                  className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 transition-colors"
+                >
+                  <Cross1Icon className="h-4 w-4" />
+                </button>
+              </div>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+                {editingTagImage.filename}
+              </p>
+              <input
+                type="text"
+                value={tagEditValue}
+                onChange={(e) => setTagEditValue(e.target.value)}
+                placeholder="输入标签，逗号分隔"
+                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 text-sm"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") saveTagEdit();
+                }}
+              />
+              {availableTags.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mt-3">
+                  {availableTags
+                    .filter((t) => !tagEditValue.includes(t))
+                    .slice(0, 8)
+                    .map((tag) => (
+                      <button
+                        key={tag}
+                        onClick={() => {
+                          const current = tagEditValue.trim();
+                          setTagEditValue(current ? `${current}, ${tag}` : tag);
+                        }}
+                        className="px-2.5 py-1 text-xs font-medium rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+                      >
+                        + {tag}
+                      </button>
+                    ))}
+                </div>
+              )}
+              <div className="flex justify-end gap-3 mt-5">
+                <button
+                  onClick={() => setEditingTagImage(null)}
+                  className="px-4 py-2 text-sm font-medium rounded-xl border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={saveTagEdit}
+                  className="px-4 py-2 text-sm font-medium rounded-xl bg-indigo-500 text-white hover:bg-indigo-600 transition-colors flex items-center gap-1.5"
+                >
+                  <CheckIcon className="h-4 w-4" />
+                  保存
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <ToastContainer />
     </>
