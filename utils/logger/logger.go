@@ -75,27 +75,40 @@ func InitLogger(cfg *config.Config) error {
 
 	var cores []zapcore.Core
 
-	// Configure lumberjack for log rotation
+	// Configure lumberjack for log rotation; fall back to stdout if logs/ is unwritable
 	logRotator := &lumberjack.Logger{
-		Filename:   "logs/imageflow.log", // Log file path
-		MaxSize:    100,                  // Max size per log file: 100MB
-		MaxBackups: 30,                   // Keep 30 backup files
-		MaxAge:     7,                    // Keep logs for 7 days
-		Compress:   true,                 // Compress old log files
+		Filename:   "logs/imageflow.log",
+		MaxSize:    100,
+		MaxBackups: 30,
+		MaxAge:     7,
+		Compress:   true,
 	}
 
-	cores = append(cores, zapcore.NewCore(
-		zapcore.NewJSONEncoder(config.EncoderConfig),
-		zapcore.AddSync(logRotator),
-		config.Level,
-	))
-
-	if debugMode {
+	// Try to ensure log directory exists
+	if err := os.MkdirAll("logs", 0755); err == nil {
+		cores = append(cores, zapcore.NewCore(
+			zapcore.NewJSONEncoder(config.EncoderConfig),
+			zapcore.AddSync(logRotator),
+			config.Level,
+		))
+	} else {
+		fmt.Fprintf(os.Stderr, "WARNING: Cannot create logs/ directory (%v), logging to stdout only\n", err)
 		cores = append(cores, zapcore.NewCore(
 			zapcore.NewConsoleEncoder(config.EncoderConfig),
 			zapcore.AddSync(os.Stdout),
 			config.Level,
 		))
+	}
+
+	if debugMode {
+		// Always add console output in debug mode
+		if _, err := os.Stat("logs"); err == nil {
+			cores = append(cores, zapcore.NewCore(
+				zapcore.NewConsoleEncoder(config.EncoderConfig),
+				zapcore.AddSync(os.Stdout),
+				config.Level,
+			))
+		}
 	}
 
 	core := zapcore.NewTee(cores...)
