@@ -141,7 +141,7 @@ func RequireRole(cfg *config.Config, minRole string, next http.HandlerFunc) http
 		providedKey := parts[1]
 		if valid, role := isKeyValid(cfg, providedKey); valid {
 			if !roleAllowed(role, minRole) {
-				errors.WriteError(w, errors.ErrForbidden)
+				errors.WriteError(w, errors.ErrNoPermission)
 				logger.Warn("Insufficient role for endpoint",
 					zap.String("role", role),
 					zap.String("required", minRole),
