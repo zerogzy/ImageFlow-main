@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback } from "react";
 import { motion } from "framer-motion";
 import { ImageFile } from "../types";
 import { getFullUrl } from "../utils/baseUrl";
@@ -17,9 +17,9 @@ import {
   copyHtmlImgTag,
   copyToClipboard,
 } from "../utils/copyImageUtils";
-import { 
-  ClipboardCopyIcon, 
-  EyeOpenIcon, 
+import {
+  ClipboardCopyIcon,
+  EyeOpenIcon,
   TrashIcon,
   FileIcon,
   CheckIcon,
@@ -27,7 +27,6 @@ import {
   CopyIcon
 } from './ui/icons';
 
-// 格式化文件大小
 const formatFileSize = (bytes: number): string => {
   if (bytes < 1024) return bytes + " B";
   else if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + " KB";
@@ -45,15 +44,11 @@ export default function ImageCard({
   onClick: () => void;
   onDelete: (id: string) => Promise<void>;
 }) {
-  const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "error">(
-    "idle"
-  );
+  const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "error">("idle");
   const [isHovered, setIsHovered] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const isGif = image.format.toLowerCase() === "gif";
-  const cardRef = useRef<HTMLDivElement>(null);
 
-  // 右键菜单状态
   const [contextMenu, setContextMenu] = useState({
     isOpen: false,
     x: 0,
@@ -64,37 +59,21 @@ export default function ImageCard({
     setIsLoading(false);
   }, []);
 
-  // 根据方向确定高度类和比例
-  const getHeightAndAspectRatio = (orientation: string) => {
+  const getAspectRatioClass = (orientation: string) => {
     switch (orientation.toLowerCase()) {
       case "portrait":
-        return {
-          heightClass: "h-auto",
-          aspectRatio: "aspect-[3/4]",
-        };
+        return "aspect-[3/4]";
       case "landscape":
-        return {
-          heightClass: "h-auto",
-          aspectRatio: "aspect-[4/3]",
-        };
+        return "aspect-[4/3]";
       case "square":
-        return {
-          heightClass: "h-auto",
-          aspectRatio: "aspect-square",
-        };
+        return "aspect-square";
       default:
-        return {
-          heightClass: "h-auto",
-          aspectRatio: "aspect-auto",
-        };
+        return "aspect-[4/3]";
     }
   };
 
-  const { heightClass, aspectRatio } = getHeightAndAspectRatio(
-    image.orientation
-  );
+  const aspectRatioClass = getAspectRatioClass(image.orientation);
 
-  // 处理右键菜单
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
     setContextMenu({
@@ -104,19 +83,13 @@ export default function ImageCard({
     });
   };
 
-  // 关闭右键菜单
   const closeContextMenu = () => {
-    setContextMenu({
-      ...contextMenu,
-      isOpen: false,
-    });
+    setContextMenu(prev => ({ ...prev, isOpen: false }));
   };
 
-  // 复制回调
   const handleCopy = async (type: string) => {
     try {
       let success = false;
-
       switch (type) {
         case "original":
           success = await copyOriginalUrl(image);
@@ -134,19 +107,13 @@ export default function ImageCard({
           success = await copyHtmlImgTag(image);
           break;
       }
-
-      if (success) {
-        showToast("复制成功", "success");
-      } else {
-        showToast("复制失败", "error");
-      }
+      showToast(success ? "复制成功" : "复制失败", success ? "success" : "error");
     } catch (error) {
       showToast("复制失败", "error");
       console.error("复制错误:", error);
     }
   };
 
-  // 删除图片
   const handleDelete = async (e: React.MouseEvent) => {
     e.stopPropagation();
     try {
@@ -158,7 +125,6 @@ export default function ImageCard({
     }
   };
 
-  // 右键菜单项
   const menuGroups: ContextMenuGroup[] = [
     {
       id: "copy",
@@ -225,92 +191,106 @@ export default function ImageCard({
   return (
     <>
       <motion.div
-        ref={cardRef}
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
-        whileHover={{ y: -8, transition: { duration: 0.2 } }}
-        className="rounded-xl shadow-lg overflow-hidden group cursor-pointer border border-gray-100 dark:border-gray-700 hover:border-indigo-300 dark:hover:border-indigo-500 transition-all duration-300 h-full"
+        transition={{ duration: 0.4, ease: "easeOut" }}
+        whileHover={{ y: -6, transition: { duration: 0.25 } }}
+        className="group relative rounded-2xl overflow-hidden cursor-pointer bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 hover:border-indigo-200 dark:hover:border-indigo-800 hover:shadow-xl dark:hover:shadow-indigo-900/20 transition-all duration-300"
         onClick={onClick}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
         onContextMenu={handleContextMenu}
       >
-        <div
-          className={`relative ${heightClass} ${aspectRatio} overflow-hidden bg-gray-100 dark:bg-gray-900 w-full`}
-        >
+        {/* 图片容器 */}
+        <div className={`relative ${aspectRatioClass} overflow-hidden bg-gray-50 dark:bg-gray-950`}>
           {isGif ? (
-            // Use img tag for GIFs to ensure animation plays
             <img
               src={getFullUrl(image.url)}
               alt={image.filename}
               onLoad={handleImageLoad}
-              className={`w-full h-full object-cover transition-all duration-500 ${
-                isLoading ? "opacity-0" : "opacity-100 group-hover:scale-105"
+              className={`w-full h-full object-cover transition-all duration-700 ease-out ${
+                isLoading ? "opacity-0 scale-105" : "opacity-100 group-hover:scale-110"
               }`}
             />
           ) : (
-            // Use Next.js Image for non-GIF images with optimizations
             <Image
               src={getFullUrl(image.urls?.webp || image.url)}
               alt={image.filename}
               fill
               loading="lazy"
               onLoad={handleImageLoad}
-              className={`object-cover w-full h-full transition-all duration-500 ${
-                isLoading ? "opacity-0" : "opacity-100 group-hover:scale-105"
+              className={`object-cover transition-all duration-700 ease-out ${
+                isLoading ? "opacity-0 scale-105" : "opacity-100 group-hover:scale-110"
               }`}
               sizes="(max-width: 640px) 100vw, (max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
-              quality={75}
+              quality={80}
             />
           )}
 
           {isLoading && <LoadingSpinner />}
 
-          {/* Image info overlay */}
+          {/* 顶部信息覆盖层 */}
           <div
-            className={`absolute top-0 left-0 right-0 p-3 flex justify-between items-center bg-gradient-to-b from-black/60 to-transparent text-white transition-opacity duration-300 ${
+            className={`absolute inset-x-0 top-0 p-3 bg-gradient-to-b from-black/50 via-black/20 to-transparent transition-opacity duration-300 ${
               isLoading ? "opacity-0" : "opacity-100"
             }`}
           >
-            <div className="flex space-x-1">
-              <span
-                className={`text-xs font-medium px-2 py-1 rounded-full backdrop-blur-sm ${
-                  isGif ? "bg-green-500/70" : "bg-blue-500/70"
-                }`}
-              >
-                {getFormatLabel(image.format)}
-              </span>
-              <span className="text-xs font-medium px-2 py-1 rounded-full bg-purple-500/70 backdrop-blur-sm">
-                {getOrientationLabel(image.orientation)}
-              </span>
-            </div>
+            <div className="flex items-center justify-between">
+              <div className="flex gap-1.5 flex-wrap">
+                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full backdrop-blur-md ${
+                  isGif
+                    ? "bg-emerald-500/80 text-white"
+                    : "bg-blue-500/80 text-white"
+                }`}>
+                  {getFormatLabel(image.format)}
+                </span>
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-purple-500/80 text-white backdrop-blur-md">
+                  {getOrientationLabel(image.orientation)}
+                </span>
+              </div>
 
-            <motion.button
-              initial={{ opacity: 0 }}
-              animate={{ opacity: isHovered ? 1 : 0 }}
-              onClick={(e) => {
-                e.stopPropagation();
-                copyToClipboard(getFullUrl(image.urls?.webp || image.url));
-              }}
-              className="p-1.5 rounded-full bg-white/20 backdrop-blur-sm hover:bg-white/40 transition-colors"
-              title="复制URL"
-            >
-              {copyStatus === "idle" && (
-                <CopyIcon className="h-4 w-4" />
-              )}
-              {copyStatus === "copied" && (
-                <CheckIcon className="h-4 w-4 text-green-400" />
-              )}
-              {copyStatus === "error" && (
-                <Cross1Icon className="h-4 w-4 text-red-400" />
-              )}
-            </motion.button>
+              <motion.button
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: isHovered ? 1 : 0, scale: isHovered ? 1 : 0.8 }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  copyToClipboard(getFullUrl(image.urls?.webp || image.url));
+                  setCopyStatus("copied");
+                  setTimeout(() => setCopyStatus("idle"), 1500);
+                }}
+                className="p-1.5 rounded-full bg-white/25 backdrop-blur-md hover:bg-white/40 transition-colors"
+                title="复制URL"
+              >
+                {copyStatus === "idle" && <CopyIcon className="h-3.5 w-3.5 text-white" />}
+                {copyStatus === "copied" && <CheckIcon className="h-3.5 w-3.5 text-emerald-300" />}
+                {copyStatus === "error" && <Cross1Icon className="h-3.5 w-3.5 text-red-300" />}
+              </motion.button>
+            </div>
           </div>
+
+          {/* 底部悬停信息层 */}
+          <motion.div
+            initial={false}
+            animate={{ opacity: isHovered ? 1 : 0, y: isHovered ? 0 : 10 }}
+            transition={{ duration: 0.25 }}
+            className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/70 via-black/30 to-transparent"
+          >
+            <p className="text-white text-xs font-medium truncate mb-1">
+              {image.filename}
+            </p>
+            <div className="flex items-center gap-2 text-white/70 text-[10px]">
+              <span>{formatFileSize(image.size)}</span>
+              {image.width && image.height && (
+                <>
+                  <span className="w-0.5 h-0.5 rounded-full bg-white/50" />
+                  <span>{image.width}×{image.height}</span>
+                </>
+              )}
+            </div>
+          </motion.div>
         </div>
       </motion.div>
 
-      {/* 右键菜单 */}
       <ContextMenu
         items={menuGroups}
         isOpen={contextMenu.isOpen}
