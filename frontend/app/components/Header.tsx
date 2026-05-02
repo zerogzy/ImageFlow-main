@@ -36,8 +36,8 @@ export default function Header({ onApiKeyClick, title, isKeyVerified = false }: 
       </div>
 
       <div className="flex items-center space-x-2">
-        {pathname !== '/manage' && (
-          <Link href="/manage" className="btn-icon">
+        {(pathname === '/' || pathname === '/upload') && (
+          <Link href={pathname === '/' ? '/upload' : '/'} className="btn-icon">
             <HamburgerMenuIcon className="h-6 w-6" />
           </Link>
         )}

@@ -186,8 +186,9 @@ export default function Manage() {
   };
 
   useEffect(() => {
+    if (!isKeyVerified) return;
     fetchImages();
-  }, [filters]);
+  }, [filters, isKeyVerified]);
 
   const handleFilterChange = (
     format: string,
@@ -222,7 +223,7 @@ export default function Manage() {
         </motion.div>
       )}
 
-      <ImageFilters onFilterChange={handleFilterChange} />
+      <ImageFilters onFilterChange={handleFilterChange} enabled={isKeyVerified} />
 
       {isLoading ? (
         <div className="flex justify-center items-center h-64">

@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { api } from "../utils/request";
 import { ChevronDownIcon, MagnifyingGlassIcon, MixerHorizontalIcon } from "./ui/icons";
 
-export default function ImageFilters({ onFilterChange }: ImageFiltersProps) {
+export default function ImageFilters({ onFilterChange, enabled = true }: ImageFiltersProps) {
   const [format, setFormat] = useState("webp");
   const [orientation, setOrientation] = useState("all");
   const [tag, setTag] = useState("");
@@ -34,18 +34,19 @@ export default function ImageFilters({ onFilterChange }: ImageFiltersProps) {
   ], []);
 
   useEffect(() => {
+    if (!enabled) return;
     const fetchTags = async () => {
       try {
         const response = await api.get<{ tags: string[] }>("/api/tags");
         if (response.tags && response.tags.length > 0) {
           setAvailableTags(response.tags);
         }
-      } catch (error) {
-        console.error("获取标签失败:", error);
+      } catch {
+        // silently skip when not authenticated
       }
     };
     fetchTags();
-  }, []);
+  }, [enabled]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {

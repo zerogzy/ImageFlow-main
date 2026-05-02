@@ -68,6 +68,7 @@ export interface ApiKeyModalProps {
 
 export interface ImageFiltersProps {
   onFilterChange: (format: string, orientation: string, tag: string) => void;
+  enabled?: boolean;
 }
 
 // 上传结果类型定义

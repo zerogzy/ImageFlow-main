@@ -31,31 +31,19 @@ export default function UploadPage() {
   useEffect(() => {
     const savedKey = getApiKey();
     if (savedKey) {
-      validateApiKey(savedKey).then((valid) => {
-        if (valid) {
-          setIsKeyVerified(true);
-          fetchConfig();
-        } else {
-          removeApiKey();
-        }
-        setIsCheckingKey(false);
-      });
+      setIsKeyVerified(true);
+      fetchConfig();
+      setIsCheckingKey(false);
     } else {
       setIsCheckingKey(false);
     }
   }, []);
 
   useEffect(() => {
-    if (!isKeyVerified) return;
-    fetchConfig();
-  }, [isKeyVerified]);
-
-  useEffect(() => {
-    if (isKeyVerified && !showKeyModal) return;
-    const timer = setTimeout(() => {
-      if (!isKeyVerified) setShowKeyModal(true);
-    }, 500);
-    return () => clearTimeout(timer);
+    if (!isKeyVerified) {
+      const timer = setTimeout(() => setShowKeyModal(true), 500);
+      return () => clearTimeout(timer);
+    }
   }, [isKeyVerified, isCheckingKey]);
 
   const fetchConfig = async () => {
@@ -106,17 +94,6 @@ export default function UploadPage() {
     setIsUploading(true);
 
     try {
-      const formData = new FormData();
-      for (const file of files) {
-        formData.append("images[]", file);
-      }
-      if (tags.length > 0) {
-        formData.append("tags", tags.join(","));
-      }
-      if (expiry > 0) {
-        formData.append("expiryMinutes", String(expiry));
-      }
-
       const response = await api.upload<{ results: { status: string; filename: string; message: string }[] }>(
         "/api/upload",
         files
@@ -184,7 +161,7 @@ export default function UploadPage() {
           <div className="text-center mb-10">
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">图片上传</h1>
             <p className="text-gray-500 dark:text-gray-400">
-              上传图片到 ImageFlow，支持批量拖拽和标签管理
+              拖拽图片到下方区域或点击选择，支持批量上传
             </p>
           </div>
 

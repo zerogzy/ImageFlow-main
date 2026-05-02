@@ -216,6 +216,20 @@ export default function UploadSection({
               )}
             </div>
           )}
+
+          {selectedFiles.length > 0 && (
+            <button
+              type="submit"
+              disabled={isUploading}
+              className={`w-full py-3 rounded-xl font-medium text-white transition-colors ${
+                isUploading
+                  ? "bg-indigo-400 cursor-not-allowed"
+                  : "bg-indigo-500 hover:bg-indigo-600"
+              }`}
+            >
+              {isUploading ? "上传中..." : `上传 ${selectedFiles.length} 张图片`}
+            </button>
+          )}
         </form>
       </div>
     </>

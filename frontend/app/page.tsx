@@ -171,37 +171,20 @@ export default function Home() {
         >
           <div className="text-center mb-10">
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">图片广场</h1>
-            <p className="text-gray-500 dark:text-gray-400">
-              {adminKey ? "管理员模式 — 可删除和修改标签" : "浏览图片，输入管理员密钥可管理"}
-            </p>
           </div>
 
           <div className="flex items-center justify-between mb-6">
-            <ImageFilters onFilterChange={handleFilterChange} />
+            <ImageFilters onFilterChange={handleFilterChange} enabled={!!adminKey} />
 
-            {!adminKey && (
-              <button
-                onClick={() => setShowAdminModal(true)}
-                className="ml-auto px-4 py-2 text-sm font-medium text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-700 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors"
+            <div className="flex items-center gap-3 ml-auto">
+              <a
+                href="/upload"
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-indigo-500 rounded-lg hover:bg-indigo-600 transition-colors"
               >
-                管理员登录
-              </button>
-            )}
-
-            {adminKey && (
-              <div className="flex items-center gap-3 ml-auto">
-                <span className="text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded-full">
-                  管理员
-                </span>
-                <a
-                  href="/upload"
-                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-indigo-500 rounded-lg hover:bg-indigo-600 transition-colors"
-                >
-                  <UploadIcon className="h-4 w-4" />
-                  上传图片
-                </a>
-              </div>
-            )}
+                <UploadIcon className="h-4 w-4" />
+                上传图片
+              </a>
+            </div>
           </div>
 
           {loading && images.length === 0 ? (
