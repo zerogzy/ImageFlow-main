@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { CheckIcon, LockClosedIcon, InfoCircledIcon, Spinner } from '../components/ui/icons';
 
 export default function ApiKeyModal({ isOpen, onClose, onSuccess }: ApiKeyModalProps) {
-    const [apiKey, setApiKey] = useState('');
+    const [inputValue, setInputValue] = useState('');
     const [isValidating, setIsValidating] = useState(false);
     const [error, setError] = useState('');
     const [showSuccess, setShowSuccess] = useState(false);
@@ -26,7 +26,7 @@ export default function ApiKeyModal({ isOpen, onClose, onSuccess }: ApiKeyModalP
             }
 
             // 重置状态
-            setApiKey('');
+            setInputValue('');
             setError('');
             setShowSuccess(false);
         }
@@ -34,7 +34,7 @@ export default function ApiKeyModal({ isOpen, onClose, onSuccess }: ApiKeyModalP
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!apiKey.trim()) {
+        if (!inputValue.trim()) {
             setError('请输入API Key');
             return;
         }
@@ -43,18 +43,18 @@ export default function ApiKeyModal({ isOpen, onClose, onSuccess }: ApiKeyModalP
         setError('');
 
         try {
-            const isValid = await validateApiKey(apiKey);
+            const isValid = await validateApiKey(inputValue);
             if (isValid) {
                 // 显示成功动画
                 setShowSuccess(true);
 
                 // 保存API Key到本地存储
-                setApiKey(apiKey);
+                setApiKey(inputValue);
 
                 // 等待动画完成后关闭弹窗
                 setTimeout(() => {
                     setShowSuccess(false);
-                    onSuccess(apiKey);
+                    onSuccess(inputValue);
                     onClose();
                 }, 1200);
             } else {
@@ -211,8 +211,8 @@ export default function ApiKeyModal({ isOpen, onClose, onSuccess }: ApiKeyModalP
                                 </div>
                                 <input
                                     type="password"
-                                    value={apiKey}
-                                    onChange={(e) => setApiKey(e.target.value)}
+                                    value={inputValue}
+                                    onChange={(e) => setInputValue(e.target.value)}
                                     className="w-full pl-10 pr-4 py-3 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent dark:bg-slate-700 dark:text-white text-sm transition-all duration-200"
                                     placeholder="输入您的API密钥"
                                     autoFocus
