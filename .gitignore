@@ -34,3 +34,4 @@ static/images/**/*
 
 # Coverage
 coverage.txt
+"*.zip" 
