@@ -1,0 +1,12 @@
+RewriteEngine On
+
+# Route all non-file, non-directory requests to index.php
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^ index.php [L]
+
+# Security
+<FilesMatch "\.(env|git|htaccess|md)$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>

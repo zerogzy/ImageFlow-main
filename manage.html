@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图片管理 - ImageFlow</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>tailwind.config = { darkMode: 'class' }</script>
+    <style>.my-masonry-grid{display:flex;margin-left:-16px}.my-masonry-grid_column{padding-left:16px}</style>
+</head>
+<body class="bg-gray-50 dark:bg-gray-900 min-h-screen">
+    <header class="fixed top-0 left-0 right-0 z-40 bg-white/80 dark:bg-gray-900/80 backdrop-blur-lg border-b border-gray-200/50 dark:border-gray-800/50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
+            <a href="/" class="flex items-center gap-3"><div class="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center"><span class="text-white font-bold text-sm">IF</span></div><span class="font-semibold text-gray-900 dark:text-white text-sm">ImageFlow</span><span class="text-gray-300 dark:text-gray-600">/</span><span class="text-sm text-gray-500 dark:text-gray-400">图片管理</span></a>
+            <div class="flex items-center gap-2">
+                <a href="/" class="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">广场</a>
+                <a href="/upload" class="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">上传</a>
+                <button id="theme-toggle" class="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">🌓</button>
+                <button id="logout-btn" class="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">🚪</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 pt-20 pb-12">
+        <div class="flex items-center gap-3 mb-6">
+            <select id="filter-format" class="px-3 py-1.5 text-sm rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 focus:outline-none">
+                <option value="webp">图片</option><option value="gif">GIF</option>
+            </select>
+            <select id="filter-orientation" class="px-3 py-1.5 text-sm rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 focus:outline-none">
+                <option value="all">全部方向</option><option value="landscape">横向</option><option value="portrait">纵向</option>
+            </select>
+        </div>
+
+        <div id="gallery" class="my-masonry-grid"></div>
+        <div id="loading-more" class="hidden text-center py-8 text-indigo-500">加载中...</div>
+        <div id="sentinel" class="h-1"></div>
+    </main>
+
+    <div id="toast-container" class="fixed top-20 right-4 z-50 space-y-2"></div>
+
+    <script src="/js/auth.js"></script>
+    <script>
+        initTheme();
+        let images = [], page = 1, hasMore = true, loading = false;
+        let currentFilter = { format: 'webp', orientation: 'all' };
+
+        checkAuth('admin', () => { loadImages(); setupInfiniteScroll(); });
+
+        async function loadImages() {
+            loading = true;
+            try {
+                const params = new URLSearchParams({ page, limit: '24', format: currentFilter.format });
+                if (currentFilter.orientation !== 'all') params.set('orientation', currentFilter.orientation);
+                const data = await API.get(`/api/images?${params}`);
+                images = [...images, ...data.images];
+                hasMore = data.page < data.totalPages;
+                page++;
+                render();
+            } catch { showToast('加载失败', 'error'); }
+            finally { loading = false; }
+        }
+
+        function render() {
+            const gallery = document.getElementById('gallery');
+            gallery.innerHTML = images.map(img => `
+                <div class="my-masonry-grid_column mb-4">
+                    <div class="relative group cursor-pointer rounded-xl overflow-hidden bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-shadow" onclick="openModal('${img.id}')">
+                        <img src="${img.urls?.webp || img.urls?.original}" loading="lazy" class="w-full ${img.orientation === 'portrait' ? 'aspect-[3/4]' : 'aspect-[4/3]'} object-cover">
+                        <div class="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <span class="px-2 py-0.5 text-xs rounded bg-black/50 text-white">${img.format}</span>
+                            <button onclick="event.stopPropagation();deleteImg('${img.id}')" class="p-1 rounded bg-red-500 text-white hover:bg-red-600"><svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function setupInfiniteScroll() {
+            const observer = new IntersectionObserver(entries => { if (entries[0].isIntersecting && hasMore && !loading) loadImages(); });
+            observer.observe(document.getElementById('sentinel'));
+        }
+
+        function deleteImg(id) {
+            if (!confirm('确定删除？')) return;
+            API.post('/api/delete-image', { id }).then(() => { showToast('已删除', 'success'); images = images.filter(i => i.id !== id); render(); }).catch(() => showToast('删除失败', 'error'));
+        }
+
+        document.getElementById('filter-format').onchange = (e) => { currentFilter.format = e.target.value; page = 1; images = []; hasMore = true; loadImages(); };
+        document.getElementById('filter-orientation').onchange = (e) => { currentFilter.orientation = e.target.value; page = 1; images = []; hasMore = true; loadImages(); };
+    </script>
+</body>
+</html>
