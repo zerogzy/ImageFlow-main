@@ -10,10 +10,16 @@ import ToastContainer, { showToast } from "./components/ToastContainer";
 import ApiKeyModal from "./components/ApiKeyModal";
 import { ImageFile, ImageListResponse } from "./types";
 import { api } from "./utils/request";
-import { getApiKey, setApiKey, validateApiKey, removeApiKey } from "./utils/auth";
 import {
-  UploadIcon,
-  PlusIcon,
+  getApiKey,
+  getApiRole,
+  setApiKey,
+  validateApiKey,
+  removeApiKey,
+  isAuthenticated,
+  isAdmin as isAdminRole,
+} from "./utils/auth";
+import {
   ImageIcon,
   ChevronDownIcon,
   TagIcon,
@@ -31,32 +37,41 @@ export default function Home() {
   const [filterTag, setFilterTag] = useState("");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [adminKey, setAdminKey] = useState<string | null>(null);
-  const [showAdminModal, setShowAdminModal] = useState(false);
-  const [pendingAdminAction, setPendingAdminAction] = useState<(() => void) | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const [showKeyModal, setShowKeyModal] = useState(false);
   const [availableTags, setAvailableTags] = useState<string[]>([]);
   const [tagSearchQuery, setTagSearchQuery] = useState("");
   const [activeDropdown, setActiveDropdown] = useState<"format" | "orientation" | "tag" | null>(null);
   const [editingTagImage, setEditingTagImage] = useState<ImageFile | null>(null);
   const [tagEditValue, setTagEditValue] = useState("");
 
+  const isAdmin = userRole === "admin";
+
   useEffect(() => {
     const savedKey = getApiKey();
-    if (savedKey) {
-      validateApiKey(savedKey).then((valid) => {
-        if (valid) {
-          setAdminKey(savedKey);
-          fetchTags();
+    const savedRole = getApiRole();
+    if (savedKey && savedRole) {
+      validateApiKey(savedKey).then((result) => {
+        if (result.valid && result.role) {
+          setUserRole(result.role);
+          if (result.role === "admin" || result.role === "guest") {
+            fetchTags();
+          }
         } else {
           removeApiKey();
+          setShowKeyModal(true);
         }
       });
+    } else {
+      setShowKeyModal(true);
     }
   }, []);
 
   useEffect(() => {
-    fetchImages();
-  }, [filterFormat, filterOrientation, filterTag, page]);
+    if (userRole) {
+      fetchImages();
+    }
+  }, [filterFormat, filterOrientation, filterTag, page, userRole]);
 
   const fetchTags = async () => {
     try {
@@ -88,44 +103,25 @@ export default function Home() {
     }
   };
 
-  const handleAdminAuth = useCallback(async (key: string) => {
+  const handleKeyAuth = useCallback(async (key: string) => {
     try {
-      const response = await fetch("/api/validate-api-key", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${key}`,
-        },
-      });
-      const data = await response.json();
-      if (data.valid && data.role === "admin") {
-        setApiKey(key);
-        setAdminKey(key);
-        setShowAdminModal(false);
-        showToast("管理员验证成功", "success");
+      const result = await validateApiKey(key);
+      if (result.valid && result.role) {
+        setApiKey(key, result.role);
+        setUserRole(result.role);
+        setShowKeyModal(false);
+        const roleLabel = result.role === "admin" ? "管理员" : "访客";
+        showToast(`${roleLabel}验证成功`, "success");
         fetchTags();
-        if (pendingAdminAction) {
-          pendingAdminAction();
-          setPendingAdminAction(null);
-        }
         return true;
       }
-      showToast("管理员密钥无效", "error");
+      showToast("密钥无效", "error");
       return false;
     } catch {
       showToast("验证失败", "error");
       return false;
     }
-  }, [pendingAdminAction]);
-
-  const requireAdmin = useCallback((action: () => void) => {
-    if (adminKey) {
-      action();
-    } else {
-      setPendingAdminAction(() => action);
-      setShowAdminModal(true);
-    }
-  }, [adminKey]);
+  }, []);
 
   const handleDelete = useCallback(async (id: string) => {
     try {
@@ -138,27 +134,14 @@ export default function Home() {
   }, []);
 
   const handleCardDelete = useCallback(async (id: string) => {
-    if (adminKey) {
+    if (isAdmin) {
       await handleDelete(id);
-    } else {
-      return new Promise<void>((resolve) => {
-        setPendingAdminAction(() => async () => {
-          await handleDelete(id);
-          resolve();
-        });
-        setShowAdminModal(true);
-      });
     }
-  }, [adminKey, handleDelete]);
+  }, [isAdmin, handleDelete]);
 
-  const handleCardClick = useCallback(async (image: ImageFile) => {
-    if (adminKey) {
-      setSelectedImage(image);
-    } else {
-      setPendingAdminAction(() => () => setSelectedImage(image));
-      setShowAdminModal(true);
-    }
-  }, [adminKey]);
+  const handleCardClick = useCallback((image: ImageFile) => {
+    setSelectedImage(image);
+  }, []);
 
   const handleUpdateTags = useCallback(async (id: string, tags: string) => {
     try {
@@ -226,214 +209,203 @@ export default function Home() {
     }
   }, [activeDropdown]);
 
+  if (!userRole) {
+    return (
+      <>
+        <ApiKeyModal
+          isOpen={showKeyModal}
+          onClose={() => {}}
+          onSuccess={handleKeyAuth}
+        />
+        <ToastContainer />
+      </>
+    );
+  }
+
   return (
     <>
       <Header
-        onApiKeyClick={() => setShowAdminModal(true)}
-        isKeyVerified={!!adminKey}
+        onApiKeyClick={() => setShowKeyModal(true)}
+        userRole={userRole}
       />
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-24 pb-12">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-6 pb-12">
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
+          transition={{ duration: 0.3 }}
         >
-          <div className="text-center mb-10">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.5, delay: 0.1 }}
-              className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/25 mb-3"
-            >
-              <ImageIcon className="h-7 w-7 text-white" />
-            </motion.div>
-            <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-white mb-1.5">
+          <div className="flex items-center justify-between mb-6">
+            <h1 className="text-xl font-bold text-gray-900 dark:text-white">
               图片广场
             </h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              浏览、管理和分享您的图片资源
-            </p>
-          </div>
 
-          <div className="flex flex-wrap items-center gap-3 mb-8">
-            <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-              <MixerHorizontalIcon className="h-4 w-4" />
-              <span>筛选</span>
-            </div>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                <MixerHorizontalIcon className="h-4 w-4" />
+              </div>
 
-            <div className="relative" onClick={(e) => e.stopPropagation()}>
-              <button
-                onClick={() => setActiveDropdown(activeDropdown === "format" ? null : "format")}
-                className="flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-indigo-300 dark:hover:border-indigo-600 transition-colors shadow-sm"
-              >
-                <span>{formatOptions.find((o) => o.value === filterFormat)?.label}</span>
-                <ChevronDownIcon className={`h-3.5 w-3.5 transition-transform ${activeDropdown === "format" ? "rotate-180" : ""}`} />
-              </button>
-              <AnimatePresence>
-                {activeDropdown === "format" && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -4 }}
-                    transition={{ duration: 0.15 }}
-                    className="absolute top-full left-0 mt-1.5 w-32 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden"
-                  >
-                    {formatOptions.map((opt) => (
-                      <button
-                        key={opt.value}
-                        onClick={() => {
-                          handleFilterChange(opt.value, filterOrientation, filterTag);
-                          setActiveDropdown(null);
-                        }}
-                        className={`w-full px-3.5 py-2.5 text-sm text-left transition-colors ${
-                          filterFormat === opt.value
-                            ? "bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-medium"
-                            : "text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50"
-                        }`}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-
-            <div className="relative" onClick={(e) => e.stopPropagation()}>
-              <button
-                onClick={() => setActiveDropdown(activeDropdown === "orientation" ? null : "orientation")}
-                className="flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-indigo-300 dark:hover:border-indigo-600 transition-colors shadow-sm"
-              >
-                <span>{orientationOptions.find((o) => o.value === filterOrientation)?.label}</span>
-                <ChevronDownIcon className={`h-3.5 w-3.5 transition-transform ${activeDropdown === "orientation" ? "rotate-180" : ""}`} />
-              </button>
-              <AnimatePresence>
-                {activeDropdown === "orientation" && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -4 }}
-                    transition={{ duration: 0.15 }}
-                    className="absolute top-full left-0 mt-1.5 w-36 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden"
-                  >
-                    {orientationOptions.map((opt) => (
-                      <button
-                        key={opt.value}
-                        onClick={() => {
-                          handleFilterChange(filterFormat, opt.value, filterTag);
-                          setActiveDropdown(null);
-                        }}
-                        className={`w-full px-3.5 py-2.5 text-sm text-left transition-colors ${
-                          filterOrientation === opt.value
-                            ? "bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-medium"
-                            : "text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50"
-                        }`}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-
-            {adminKey && availableTags.length > 0 && (
               <div className="relative" onClick={(e) => e.stopPropagation()}>
                 <button
-                  onClick={() => setActiveDropdown(activeDropdown === "tag" ? null : "tag")}
-                  className="flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-indigo-300 dark:hover:border-indigo-600 transition-colors shadow-sm"
+                  onClick={() => setActiveDropdown(activeDropdown === "format" ? null : "format")}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-indigo-300 dark:hover:border-indigo-600 transition-colors shadow-sm"
                 >
-                  <TagIcon className="h-3.5 w-3.5" />
-                  <span>{filterTag || "标签"}</span>
-                  <ChevronDownIcon className={`h-3.5 w-3.5 transition-transform ${activeDropdown === "tag" ? "rotate-180" : ""}`} />
+                  <span>{formatOptions.find((o) => o.value === filterFormat)?.label}</span>
+                  <ChevronDownIcon className={`h-3 w-3 transition-transform ${activeDropdown === "format" ? "rotate-180" : ""}`} />
                 </button>
                 <AnimatePresence>
-                  {activeDropdown === "tag" && (
+                  {activeDropdown === "format" && (
                     <motion.div
                       initial={{ opacity: 0, y: -4 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -4 }}
                       transition={{ duration: 0.15 }}
-                      className="absolute top-full left-0 mt-1.5 w-48 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden"
+                      className="absolute top-full left-0 mt-1.5 w-32 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden"
                     >
-                      <div className="p-2 border-b border-gray-100 dark:border-gray-700">
-                        <input
-                          type="text"
-                          value={tagSearchQuery}
-                          onChange={(e) => setTagSearchQuery(e.target.value)}
-                          placeholder="搜索标签..."
-                          className="w-full px-2.5 py-1.5 text-sm rounded-lg bg-gray-50 dark:bg-gray-700/50 border-0 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-gray-800 dark:text-gray-200 placeholder-gray-400"
-                        />
-                      </div>
-                      <div className="max-h-48 overflow-y-auto">
+                      {formatOptions.map((opt) => (
                         <button
+                          key={opt.value}
                           onClick={() => {
-                            handleFilterChange(filterFormat, filterOrientation, "");
+                            handleFilterChange(opt.value, filterOrientation, filterTag);
                             setActiveDropdown(null);
-                            setTagSearchQuery("");
                           }}
-                          className={`w-full px-3.5 py-2 text-sm text-left transition-colors ${
-                            filterTag === ""
+                          className={`w-full px-3.5 py-2.5 text-sm text-left transition-colors ${
+                            filterFormat === opt.value
                               ? "bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-medium"
                               : "text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50"
                           }`}
                         >
-                          全部标签
+                          {opt.label}
                         </button>
-                        {filteredTags.map((tag) => (
-                          <button
-                            key={tag}
-                            onClick={() => {
-                              handleFilterChange(filterFormat, filterOrientation, tag);
-                              setActiveDropdown(null);
-                              setTagSearchQuery("");
-                            }}
-                            className={`w-full px-3.5 py-2 text-sm text-left transition-colors ${
-                              filterTag === tag
-                                ? "bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-medium"
-                                : "text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50"
-                            }`}
-                          >
-                            {tag}
-                          </button>
-                        ))}
-                        {filteredTags.length === 0 && (
-                          <div className="px-3.5 py-3 text-sm text-gray-400 text-center">无匹配标签</div>
-                        )}
-                      </div>
+                      ))}
                     </motion.div>
                   )}
                 </AnimatePresence>
               </div>
-            )}
 
-            {filterTag && (
-              <motion.span
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300"
-              >
-                {filterTag}
+              <div className="relative" onClick={(e) => e.stopPropagation()}>
                 <button
-                  onClick={() => handleFilterChange(filterFormat, filterOrientation, "")}
-                  className="hover:text-indigo-900 dark:hover:text-indigo-100"
+                  onClick={() => setActiveDropdown(activeDropdown === "orientation" ? null : "orientation")}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-indigo-300 dark:hover:border-indigo-600 transition-colors shadow-sm"
                 >
-                  <Cross1Icon className="h-3 w-3" />
+                  <span>{orientationOptions.find((o) => o.value === filterOrientation)?.label}</span>
+                  <ChevronDownIcon className={`h-3 w-3 transition-transform ${activeDropdown === "orientation" ? "rotate-180" : ""}`} />
                 </button>
-              </motion.span>
-            )}
+                <AnimatePresence>
+                  {activeDropdown === "orientation" && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -4 }}
+                      transition={{ duration: 0.15 }}
+                      className="absolute top-full left-0 mt-1.5 w-36 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden"
+                    >
+                      {orientationOptions.map((opt) => (
+                        <button
+                          key={opt.value}
+                          onClick={() => {
+                            handleFilterChange(filterFormat, opt.value, filterTag);
+                            setActiveDropdown(null);
+                          }}
+                          className={`w-full px-3.5 py-2.5 text-sm text-left transition-colors ${
+                            filterOrientation === opt.value
+                              ? "bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-medium"
+                              : "text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
 
-            <div className="flex-1" />
+              {availableTags.length > 0 && (
+                <div className="relative" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    onClick={() => setActiveDropdown(activeDropdown === "tag" ? null : "tag")}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-indigo-300 dark:hover:border-indigo-600 transition-colors shadow-sm"
+                  >
+                    <TagIcon className="h-3.5 w-3.5" />
+                    <span>{filterTag || "标签"}</span>
+                    <ChevronDownIcon className={`h-3 w-3 transition-transform ${activeDropdown === "tag" ? "rotate-180" : ""}`} />
+                  </button>
+                  <AnimatePresence>
+                    {activeDropdown === "tag" && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -4 }}
+                        transition={{ duration: 0.15 }}
+                        className="absolute top-full left-0 mt-1.5 w-48 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden"
+                      >
+                        <div className="p-2 border-b border-gray-100 dark:border-gray-700">
+                          <input
+                            type="text"
+                            value={tagSearchQuery}
+                            onChange={(e) => setTagSearchQuery(e.target.value)}
+                            placeholder="搜索标签..."
+                            className="w-full px-2.5 py-1.5 text-sm rounded-lg bg-gray-50 dark:bg-gray-700/50 border-0 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-gray-800 dark:text-gray-200 placeholder-gray-400"
+                          />
+                        </div>
+                        <div className="max-h-48 overflow-y-auto">
+                          <button
+                            onClick={() => {
+                              handleFilterChange(filterFormat, filterOrientation, "");
+                              setActiveDropdown(null);
+                              setTagSearchQuery("");
+                            }}
+                            className={`w-full px-3.5 py-2 text-sm text-left transition-colors ${
+                              filterTag === ""
+                                ? "bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-medium"
+                                : "text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                            }`}
+                          >
+                            全部标签
+                          </button>
+                          {filteredTags.map((tag) => (
+                            <button
+                              key={tag}
+                              onClick={() => {
+                                handleFilterChange(filterFormat, filterOrientation, tag);
+                                setActiveDropdown(null);
+                                setTagSearchQuery("");
+                              }}
+                              className={`w-full px-3.5 py-2 text-sm text-left transition-colors ${
+                                filterTag === tag
+                                  ? "bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-medium"
+                                  : "text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                              }`}
+                            >
+                              {tag}
+                            </button>
+                          ))}
+                          {filteredTags.length === 0 && (
+                            <div className="px-3.5 py-3 text-sm text-gray-400 text-center">无匹配标签</div>
+                          )}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              )}
 
-            <motion.a
-              href="/upload"
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl hover:from-indigo-600 hover:to-purple-700 shadow-lg shadow-indigo-500/25 transition-all duration-300"
-            >
-              <UploadIcon className="h-4 w-4" />
-              上传图片
-            </motion.a>
+              {filterTag && (
+                <motion.span
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300"
+                >
+                  {filterTag}
+                  <button
+                    onClick={() => handleFilterChange(filterFormat, filterOrientation, "")}
+                    className="hover:text-indigo-900 dark:hover:text-indigo-100"
+                  >
+                    <Cross1Icon className="h-3 w-3" />
+                  </button>
+                </motion.span>
+              )}
+            </div>
           </div>
 
           {loading && images.length === 0 && (
@@ -462,20 +434,10 @@ export default function Home() {
               animate={{ opacity: 1, y: 0 }}
               className="text-center py-20"
             >
-              <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gray-100 dark:bg-gray-800 mb-4">
-                <ImageIcon className="h-10 w-10 text-gray-400 dark:text-gray-500" />
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 mb-4">
+                <ImageIcon className="h-8 w-8 text-gray-400 dark:text-gray-500" />
               </div>
-              <p className="text-gray-500 dark:text-gray-400 text-lg mb-2">暂无图片</p>
-              <p className="text-gray-400 dark:text-gray-500 text-sm mb-6">
-                上传您的第一张图片，开始构建您的图库
-              </p>
-              <a
-                href="/upload"
-                className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl hover:from-indigo-600 hover:to-purple-700 shadow-lg shadow-indigo-500/25 transition-all duration-300"
-              >
-                <PlusIcon className="h-5 w-5" />
-                上传第一张图片
-              </a>
+              <p className="text-gray-500 dark:text-gray-400 text-lg mb-1">暂无图片</p>
             </motion.div>
           )}
 
@@ -498,9 +460,9 @@ export default function Home() {
                       <ImageCard
                         image={image}
                         onClick={() => handleCardClick(image)}
-                        onDelete={handleCardDelete}
+                        onDelete={isAdmin ? handleCardDelete : undefined}
                       />
-                      {adminKey && (
+                      {isAdmin && (
                         <motion.button
                           initial={{ opacity: 0, scale: 0.8 }}
                           whileHover={{ scale: 1.1 }}
@@ -530,9 +492,9 @@ export default function Home() {
                       <ImageCard
                         image={image}
                         onClick={() => handleCardClick(image)}
-                        onDelete={handleCardDelete}
+                        onDelete={isAdmin ? handleCardDelete : undefined}
                       />
-                      {adminKey && (
+                      {isAdmin && (
                         <motion.button
                           initial={{ opacity: 0, scale: 0.8 }}
                           whileHover={{ scale: 1.1 }}
@@ -602,16 +564,13 @@ export default function Home() {
         image={selectedImage}
         isOpen={!!selectedImage}
         onClose={() => setSelectedImage(null)}
-        onDelete={adminKey ? handleDelete : undefined}
+        onDelete={isAdmin ? handleDelete : undefined}
       />
 
       <ApiKeyModal
-        isOpen={showAdminModal}
-        onClose={() => {
-          setShowAdminModal(false);
-          setPendingAdminAction(null);
-        }}
-        onSuccess={handleAdminAuth}
+        isOpen={showKeyModal}
+        onClose={() => setShowKeyModal(false)}
+        onSuccess={handleKeyAuth}
       />
 
       <AnimatePresence>

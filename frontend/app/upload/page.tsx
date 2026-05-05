@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
-import { api } from "../utils/request";
-import { getApiKey, setApiKey, validateApiKey, removeApiKey } from "../utils/auth";
+import { api, uploadWithProgress } from "../utils/request";
+import { getApiKey, getApiRole, setApiKey, validateApiKey, removeApiKey } from "../utils/auth";
 import ApiKeyModal from "../components/ApiKeyModal";
 import UploadSection from "../components/UploadSection";
 import Header from "../components/Header";
@@ -20,32 +20,39 @@ interface FileDetail {
 }
 
 export default function UploadPage() {
-  const [isKeyVerified, setIsKeyVerified] = useState(false);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const [isCheckingKey, setIsCheckingKey] = useState(true);
   const [showKeyModal, setShowKeyModal] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [maxUploadCount, setMaxUploadCount] = useState(10);
   const [fileDetails, setFileDetails] = useState<FileDetail[]>([]);
   const [showPreviewSidebar, setShowPreviewSidebar] = useState(false);
   const [expiryMinutes, setExpiryMinutes] = useState(0);
 
-  useEffect(() => {
-    const savedKey = getApiKey();
-    if (savedKey) {
-      setIsKeyVerified(true);
-      fetchConfig();
-      setIsCheckingKey(false);
-    } else {
-      setIsCheckingKey(false);
-    }
-  }, []);
+  const isAdmin = userRole === "admin";
 
   useEffect(() => {
-    if (!isKeyVerified) {
-      const timer = setTimeout(() => setShowKeyModal(true), 500);
-      return () => clearTimeout(timer);
+    const savedKey = getApiKey();
+    const savedRole = getApiRole();
+    if (savedKey && savedRole) {
+      validateApiKey(savedKey).then((result) => {
+        if (result.valid && result.role) {
+          setUserRole(result.role);
+          if (result.role === "admin") {
+            fetchConfig();
+          }
+        } else {
+          removeApiKey();
+          setShowKeyModal(true);
+        }
+        setIsCheckingKey(false);
+      });
+    } else {
+      setIsCheckingKey(false);
+      setShowKeyModal(true);
     }
-  }, [isKeyVerified, isCheckingKey]);
+  }, []);
 
   const fetchConfig = async () => {
     try {
@@ -56,18 +63,26 @@ export default function UploadPage() {
     }
   };
 
-  const handleApiKeySubmit = useCallback(async (apiKey: string) => {
+  const handleKeyAuth = useCallback(async (apiKey: string) => {
     try {
-      const valid = await validateApiKey(apiKey);
-      if (valid) {
-        setApiKey(apiKey);
-        setIsKeyVerified(true);
+      const result = await validateApiKey(apiKey);
+      if (result.valid && result.role) {
+        setApiKey(apiKey, result.role);
+        setUserRole(result.role);
         setShowKeyModal(false);
-        showToast("密钥验证成功", "success");
+        if (result.role === "admin") {
+          showToast("管理员验证成功", "success");
+          fetchConfig();
+        } else {
+          showToast("访客密钥无法访问上传功能", "error");
+          return false;
+        }
+        return true;
       }
-      return valid;
+      showToast("密钥无效", "error");
+      return false;
     } catch {
-      showToast("密钥验证失败", "error");
+      showToast("验证失败", "error");
       return false;
     }
   }, []);
@@ -80,8 +95,10 @@ export default function UploadPage() {
     } else if (error.message.includes("401")) {
       showToast("上传失败：密钥无效，请重新验证", "error");
       removeApiKey();
-      setIsKeyVerified(false);
+      setUserRole(null);
       setShowKeyModal(true);
+    } else if (error.message.includes("403")) {
+      showToast("上传失败：权限不足，访客无法上传", "error");
     } else if (error.message.includes("timeout") || error.message.includes("abort")) {
       showToast("上传失败：请求超时，请检查网络", "error");
     } else if (error.message.includes("NetworkError") || error.message.includes("Failed to fetch")) {
@@ -93,11 +110,13 @@ export default function UploadPage() {
 
   const handleUpload = async (files: File[], expiry: number, tags: string[]) => {
     setIsUploading(true);
+    setUploadProgress(0);
 
     try {
-      const response = await api.upload<{ results: { status: string; filename: string; message: string }[] }>(
+      const response = await uploadWithProgress<{ results: { status: string; filename: string; message: string }[] }>(
         "/api/upload",
-        files
+        files,
+        (percent) => setUploadProgress(percent)
       );
 
       const results = response.results || [];
@@ -146,14 +165,37 @@ export default function UploadPage() {
     );
   }
 
+  if (userRole && userRole !== "admin") {
+    return (
+      <>
+        <Header onApiKeyClick={() => setShowKeyModal(true)} userRole={userRole} />
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 pt-24 pb-12">
+          <div className="text-center py-20">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 mb-4">
+              <UploadIcon className="h-8 w-8 text-gray-400 dark:text-gray-500" />
+            </div>
+            <p className="text-gray-500 dark:text-gray-400 text-lg mb-2">权限不足</p>
+            <p className="text-sm text-gray-400 dark:text-gray-500">访客无法上传图片，请使用管理员密钥验证</p>
+          </div>
+        </div>
+        <ApiKeyModal
+          isOpen={showKeyModal}
+          onClose={() => setShowKeyModal(false)}
+          onSuccess={handleKeyAuth}
+        />
+        <ToastContainer />
+      </>
+    );
+  }
+
   return (
     <>
       <Header
         onApiKeyClick={() => setShowKeyModal(true)}
+        userRole={userRole}
         title="图片上传"
-        isKeyVerified={isKeyVerified}
       />
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 pt-24 pb-12">
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 pt-20 pb-12">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -174,10 +216,11 @@ export default function UploadPage() {
             </p>
           </div>
 
-          {isKeyVerified ? (
+          {isAdmin ? (
             <UploadSection
               onUpload={handleUpload}
               isUploading={isUploading}
+              uploadProgress={uploadProgress}
               maxUploadCount={maxUploadCount}
               onFilesSelected={handleFilesSelected}
               onTogglePreview={togglePreviewSidebar}
@@ -187,7 +230,7 @@ export default function UploadPage() {
               expiryMinutes={expiryMinutes}
               setExpiryMinutes={setExpiryMinutes}
               onTagsChange={handleTagsChange}
-              isKeyVerified={isKeyVerified}
+              isKeyVerified={isAdmin}
             />
           ) : (
             <motion.div
@@ -213,10 +256,10 @@ export default function UploadPage() {
       <ApiKeyModal
         isOpen={showKeyModal}
         onClose={() => {
-          if (!isKeyVerified) return;
+          if (!isAdmin) return;
           setShowKeyModal(false);
         }}
-        onSuccess={handleApiKeySubmit}
+        onSuccess={handleKeyAuth}
       />
 
       <ToastContainer />

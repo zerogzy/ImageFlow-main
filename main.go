@@ -108,7 +108,7 @@ func main() {
 	http.HandleFunc("/api/validate-api-key", handlers.ValidateAPIKey(cfg))
 	http.HandleFunc("/api/upload", handlers.RequireAPIKey(cfg, handlers.UploadHandler(cfg)))
 	http.HandleFunc("/api/config", handlers.RequireAPIKey(cfg, handlers.ConfigHandler(cfg)))
-	http.HandleFunc("/api/images", handlers.RequireAPIKey(cfg, handlers.ListImagesHandler(cfg)))
+	http.HandleFunc("/api/images", handlers.RequireRole(cfg, "guest", handlers.ListImagesHandler(cfg)))
 	http.HandleFunc("/api/update-tags", handlers.RequireAPIKey(cfg, handlers.UpdateTagsHandler(cfg)))
 	http.HandleFunc("/api/delete-image", handlers.RequireAPIKey(cfg, handlers.DeleteImageHandler(cfg)))
 	http.HandleFunc("/api/tags", handlers.RequireRole(cfg, "", handlers.TagsHandler(cfg)))

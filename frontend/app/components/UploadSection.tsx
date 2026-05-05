@@ -10,6 +10,7 @@ import { ExclamationTriangleIcon, ImageIcon } from '../components/ui/icons'
 interface UploadSectionProps {
   onUpload: (files: File[], expiryMinutes: number, tags: string[]) => Promise<void>
   isUploading: boolean
+  uploadProgress?: number
   maxUploadCount?: number
   onFilesSelected?: (files: { id: string, file: File }[]) => void
   onTogglePreview?: () => void
@@ -25,6 +26,7 @@ interface UploadSectionProps {
 export default function UploadSection({
   onUpload,
   isUploading,
+  uploadProgress = 0,
   maxUploadCount = 10,
   onFilesSelected,
   onTogglePreview,
@@ -206,8 +208,17 @@ export default function UploadSection({
                 : "bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 shadow-lg shadow-indigo-500/25"
             }`}
           >
-            {isUploading ? "上传中..." : `上传 ${selectedFiles.length} 张图片`}
+            {isUploading ? `上传中 ${uploadProgress}%` : `上传 ${selectedFiles.length} 张图片`}
           </button>
+
+          {isUploading && (
+            <div className="mt-3 w-full h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-300 ease-out"
+                style={{ width: `${uploadProgress}%` }}
+              />
+            </div>
+          )}
         </div>
       )}
     </form>

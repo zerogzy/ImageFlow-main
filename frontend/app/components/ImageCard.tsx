@@ -42,7 +42,7 @@ export default function ImageCard({
 }: {
   image: ImageFile;
   onClick: () => void;
-  onDelete: (id: string) => Promise<void>;
+  onDelete?: (id: string) => Promise<void>;
 }) {
   const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "error">("idle");
   const [isHovered, setIsHovered] = useState(false);
@@ -116,6 +116,7 @@ export default function ImageCard({
 
   const handleDelete = async (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (!onDelete) return;
     try {
       await onDelete(image.id);
       showToast("图片已删除", "success");
@@ -177,13 +178,17 @@ export default function ImageCard({
           onClick: onClick,
           icon: <EyeOpenIcon className="h-4 w-4" />,
         },
-        {
-          id: "delete",
-          label: "删除图片",
-          onClick: handleDelete,
-          danger: true,
-          icon: <TrashIcon className="h-4 w-4" />,
-        },
+        ...(onDelete
+          ? [
+              {
+                id: "delete",
+                label: "删除图片",
+                onClick: handleDelete,
+                danger: true,
+                icon: <TrashIcon className="h-4 w-4" />,
+              },
+            ]
+          : []),
       ],
     },
   ];

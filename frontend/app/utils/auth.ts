@@ -1,4 +1,5 @@
 const API_KEY_KEY = "imageflow_api_key";
+const API_ROLE_KEY = "imageflow_api_role";
 const CONNECTION_KEY = "imageflow_connections";
 const HEARTBEAT_KEY = "imageflow_heartbeat";
 const HEARTBEAT_INTERVAL = 5000;
@@ -20,6 +21,7 @@ function removeConnection(): void {
     localStorage.removeItem(CONNECTION_KEY);
     localStorage.removeItem(HEARTBEAT_KEY);
     localStorage.removeItem(API_KEY_KEY);
+    localStorage.removeItem(API_ROLE_KEY);
   } else {
     localStorage.setItem(CONNECTION_KEY, String(newCount));
   }
@@ -55,6 +57,7 @@ if (typeof window !== "undefined") {
     localStorage.removeItem(CONNECTION_KEY);
     localStorage.removeItem(HEARTBEAT_KEY);
     localStorage.removeItem(API_KEY_KEY);
+    localStorage.removeItem(API_ROLE_KEY);
   }
 
   addConnection();
@@ -75,9 +78,17 @@ export const getApiKey = (): string | null => {
   return localStorage.getItem(API_KEY_KEY);
 };
 
-export const setApiKey = (apiKey: string): void => {
+export const getApiRole = (): string | null => {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(API_ROLE_KEY);
+};
+
+export const setApiKey = (apiKey: string, role?: string): void => {
   if (typeof window === "undefined") return;
   localStorage.setItem(API_KEY_KEY, apiKey);
+  if (role) {
+    localStorage.setItem(API_ROLE_KEY, role);
+  }
   updateHeartbeat();
 };
 
@@ -85,11 +96,29 @@ export const removeApiKey = (): void => {
   if (typeof window === "undefined") return;
   stopHeartbeat();
   localStorage.removeItem(API_KEY_KEY);
+  localStorage.removeItem(API_ROLE_KEY);
   localStorage.removeItem(CONNECTION_KEY);
   localStorage.removeItem(HEARTBEAT_KEY);
 };
 
-export const validateApiKey = async (apiKey: string): Promise<boolean> => {
+export const isAdmin = (): boolean => {
+  return getApiRole() === "admin";
+};
+
+export const isGuest = (): boolean => {
+  return getApiRole() === "guest";
+};
+
+export const isAuthenticated = (): boolean => {
+  return !!getApiKey() && !!getApiRole();
+};
+
+export interface ValidateResult {
+  valid: boolean;
+  role?: string;
+}
+
+export const validateApiKey = async (apiKey: string): Promise<ValidateResult> => {
   try {
     const response = await fetch("/api/validate-api-key", {
       method: "POST",
@@ -100,13 +129,16 @@ export const validateApiKey = async (apiKey: string): Promise<boolean> => {
     });
 
     if (!response.ok) {
-      return false;
+      return { valid: false };
     }
 
     const data = await response.json();
-    return data.valid === true;
+    if (data.valid) {
+      return { valid: true, role: data.role };
+    }
+    return { valid: false };
   } catch (error) {
     console.error("API Key validation error:", error);
-    return false;
+    return { valid: false };
   }
 };
